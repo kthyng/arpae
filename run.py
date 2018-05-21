@@ -21,7 +21,7 @@ proj = tracpy.tools.make_proj('nwgom-pyproj')
 grid = tracpy.inout.readgrid(grid_file, proj=proj)
 
 
-def init(name, lonsink, latsink):
+def init(name, lonsink, latsink, sinkarrows):
     '''
     Initialization for the simulation.
     '''
@@ -37,7 +37,7 @@ def init(name, lonsink, latsink):
     N = 1
 
     # Number of days
-    ndays = 5
+    ndays = 30
 
     # This is a forward-moving simulation
     ff = 1
@@ -62,11 +62,11 @@ def init(name, lonsink, latsink):
     # Initialize Tracpy class
     tp = Tracpy(loc, grid=grid, name=name, tseas=tseas, ndays=ndays, nsteps=nsteps, dostream=dostream, savell=False, doperiodic=0,
                 N=N, ff=ff, ah=ah, av=av, doturb=doturb, do3d=do3d, z0=z0, zpar=zpar,
-                time_units=time_units)
+                time_units=time_units, sinkarrows=sinkarrows)
 
     # initial separation distance of drifters, in meters, from sensitivity project
     dx = 100
-    seedsfile = 'calcs/seeds_lon0_%2.2f_lat0_%2.2f.npz' % (lonsink, latsink)
+    seedsfile = 'calcs/seeds_lon0_%2.2f_lat0_%2.2f.npz' % (abs(lonsink), latsink)
     if os.path.exists(seedsfile):
         seeds = np.load(seedsfile)
         lon0 = seeds['lon0']; lat0 = seeds['lat0']
@@ -101,10 +101,10 @@ def run():
     sinklocs = np.array([[-95, 26.75], [-91, 26.75], [-88, 27.5], [-85.5, 25.5]])
 
     # plot sinks and region of interest
-    plots.roi(sinklocs)
+    plots.roi(grid, sinks=sinklocs)
 
     overallstartdate = datetime(2012, 1, 1, 0, 0)
-    overallstopdate = datetime(2012, 1, 2, 0, 0)
+    overallstopdate = datetime(2013, 1, 1, 0, 0)
     # overallstopdate = datetime(2014, 7, 1, 4, 1)
 
     for sinkloc in sinklocs:
@@ -114,7 +114,7 @@ def run():
         for speed in speeds:
 
             # create sink velocity file for tracpy simulation
-            sinks.create(lonsink, latsink, speed)
+            iu, jv = sinks.create(lonsink, latsink, speed)
 
             date = overallstartdate
             # Start from the beginning and add days on for loop
@@ -128,13 +128,16 @@ def run():
                     not os.path.exists('tracks/' + name + 'gc.nc'):
 
                     # Read in simulation initialization
-                    tp, lon0, lat0 = init(name, lonsink, latsink)
+                    tp, lon0, lat0 = init(name, lonsink, latsink, sinkarrows=[iu, jv])
+
+                    # plot sink location, region of interest, and arrows
+                    plots.roi(grid, sinks=sinkloc, sinkarrows=[iu, jv])
 
                     # Run tracpy
                     lonp, latp, zp, t, T0, U, V = tracpy.run.run(tp, date, lon0, lat0)
 
-                # Increment by 24 hours for next loop, to move through more quickly
-                date = date + timedelta(hours=24)
+                # Increment by delta time for next loop, to move through more quickly
+                date = date + timedelta(days=7)
 
 
 if __name__ == "__main__":

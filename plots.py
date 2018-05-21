@@ -7,19 +7,25 @@ from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
 import cmocean.cm as cmo
 import os
 import shapely
+import shapely.ops
+import matplotlib.pyplot as plt
+import matplotlib as mpl
+import numpy as np
 
 
 land_50m = cartopy.feature.NaturalEarthFeature('physical', 'land', '50m')
 pc = cartopy.crs.PlateCarree()
 merc = cartopy.crs.Mercator(central_longitude=-85.0)
 
+os.makedirs('figures', exist_ok=True)
 
-def roi(sinks=None):
-  '''Region of interest of possible starting locations for drifters
+def roi(grid, sinks=None, sinkarrows=None):
+    '''Region of interest of possible starting locations for drifters
 
     Must be in regions with typical salinity < 33, 1000m depth, US waters
     '''
 
+    fname = 'figures/roi'
 
     # EEZ Polygon
     fname = 'data/useez/useez.shp'
@@ -37,8 +43,6 @@ def roi(sinks=None):
     # buffer fixed self-intersection problem
     # https://stackoverflow.com/questions/20833344/fix-invalid-polygon-python-shapely
     eez = shapely.geometry.Polygon(list(zip(x, y))).buffer(0)
-
-
 
     extent = [-98, -80, 18, 31]
 
@@ -76,9 +80,14 @@ def roi(sinks=None):
 
     # add sinks
     if sinks is not None:
-        ax.plot(sinks[:,0], sinks[:,1], 'bo', markersize=10, transform=pc)
+        ax.plot(sinks.T[0], sinks.T[1], 'bo', markersize=10, transform=pc)
+        fname += '_sinklocs'
 
+    # add sink arrows
+    if sinkarrows is not None:
+        iu, jv = sinkarrows
+        ax.quiver(grid.lon_u[::20,::20], grid.lat_u[::20,::20], iu[::20,::20], jv[::20,::20])
+        fname += '_lon0_%2.2f_lat0_%2.2f_sinkarrows' % (abs(sinks[0]), sinks[1])
 
-    os.makedirs('figures', exist_ok=True)
-    fig.savefig('figures/roi.png', bbox_inches='tight')
-    fig.savefig('figures/roi_lowres.png', bbox_inches='tight', dpi=70)
+    fig.savefig(fname + '.png', bbox_inches='tight')
+    fig.savefig(fname + '_lowres.png', bbox_inches='tight', dpi=70)
