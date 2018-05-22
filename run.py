@@ -103,7 +103,7 @@ def run():
     # plot sinks and region of interest
     plots.roi(grid, sinks=sinklocs)
 
-    overallstartdate = datetime(2012, 1, 1, 0, 0)
+    overallstartdate = datetime(2010, 1, 1, 0, 0)
     overallstopdate = datetime(2013, 1, 1, 0, 0)
     # overallstopdate = datetime(2014, 7, 1, 4, 1)
 
@@ -121,14 +121,16 @@ def run():
             # keep running until we hit the next month
             while date < overallstopdate:
 
-                name = date.isoformat()[0:13]
+                basedir = date.isoformat()[0:13]
+                os.makedirs(basedir, exist_ok=True)
+                name = 'lon0_%2.2f_lat0_%2.2f_s_%2.2f' % (abs(lon0), lat0, s)
 
                 # If the particle trajectories have not been run, run them
                 if not os.path.exists('tracks/' + name + '.nc') and \
                     not os.path.exists('tracks/' + name + 'gc.nc'):
 
                     # Read in simulation initialization
-                    tp, lon0, lat0 = init(name, lonsink, latsink, sinkarrows=[iu, jv])
+                    tp, lon0, lat0 = init(basedir + '/' + name, lonsink, latsink, sinkarrows=[iu, jv])
 
                     # plot sink location, region of interest, and arrows
                     plots.roi(grid, sinks=sinkloc, sinkarrows=[iu, jv])

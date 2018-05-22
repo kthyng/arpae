@@ -28,8 +28,8 @@ def roi(grid, sinks=None, sinkarrows=None):
     fname = 'figures/roi'
 
     # EEZ Polygon
-    fname = 'data/useez/useez.shp'
-    records = cartopy.io.shapereader.Reader(fname)
+    dname = 'data/useez/useez.shp'
+    records = cartopy.io.shapereader.Reader(dname)
     lines = []
     for record, geometry in zip(records.records(), records.geometries()):
         line = shapely.ops.linemerge(geometry)
@@ -91,3 +91,4 @@ def roi(grid, sinks=None, sinkarrows=None):
 
     fig.savefig(fname + '.png', bbox_inches='tight')
     fig.savefig(fname + '_lowres.png', bbox_inches='tight', dpi=70)
+    plt.close(fig)
