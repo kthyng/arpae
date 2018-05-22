@@ -122,7 +122,7 @@ def run():
             while date < overallstopdate:
 
                 basedir = date.isoformat()[0:13]
-                os.makedirs(basedir, exist_ok=True)
+                os.makedirs('tracks/' + basedir, exist_ok=True)
                 name = 'lon0_%2.2f_lat0_%2.2f_s_%2.2f' % (abs(sinkloc[0]), sinkloc[1], speed)
 
                 # If the particle trajectories have not been run, run them
