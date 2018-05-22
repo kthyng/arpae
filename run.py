@@ -123,7 +123,7 @@ def run():
 
                 basedir = date.isoformat()[0:13]
                 os.makedirs(basedir, exist_ok=True)
-                name = 'lon0_%2.2f_lat0_%2.2f_s_%2.2f' % (abs(sinkloc[0]), sinkloc[1], s)
+                name = 'lon0_%2.2f_lat0_%2.2f_s_%2.2f' % (abs(sinkloc[0]), sinkloc[1], speed)
 
                 # If the particle trajectories have not been run, run them
                 if not os.path.exists('tracks/' + name + '.nc') and \
