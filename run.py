@@ -107,19 +107,19 @@ def run():
     overallstopdate = datetime(2013, 1, 1, 0, 0)
     # overallstopdate = datetime(2014, 7, 1, 4, 1)
 
-    for sinkloc in sinklocs:
+    # create sink velocity file for tracpy simulation
+    iu, jv = sinks.create(lonsink, latsink, speed)
 
-        lonsink, latsink = sinkloc
+    date = overallstartdate
+    # Start from the beginning and add days on for loop
+    # keep running until we hit the next month
+    while date < overallstopdate:
 
-        for speed in speeds:
+        for sinkloc in sinklocs:
 
-            # create sink velocity file for tracpy simulation
-            iu, jv = sinks.create(lonsink, latsink, speed)
+            lonsink, latsink = sinkloc
 
-            date = overallstartdate
-            # Start from the beginning and add days on for loop
-            # keep running until we hit the next month
-            while date < overallstopdate:
+            for speed in speeds:
 
                 basedir = date.isoformat()[0:13]
                 os.makedirs('tracks/' + basedir, exist_ok=True)

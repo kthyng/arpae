@@ -86,7 +86,7 @@ def roi(grid, sinks=None, sinkarrows=None):
     # add sink arrows
     if sinkarrows is not None:
         iu, jv = sinkarrows
-        ax.quiver(grid.lon_u[::20,::20], grid.lat_u[::20,::20], iu[::20,::20], jv[::20,::20])
+        ax.quiver(grid.lon_u[::20,::20], grid.lat_u[::20,::20], iu[::20,::20], jv[::20,::20], transform=pc)
         fname += '_lon0_%2.2f_lat0_%2.2f_sinkarrows' % (abs(sinks[0]), sinks[1])
 
     fig.savefig(fname + '.png', bbox_inches='tight')
