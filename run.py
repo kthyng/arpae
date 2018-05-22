@@ -137,8 +137,8 @@ def run():
                     # Run tracpy
                     lonp, latp, zp, t, T0, U, V = tracpy.run.run(tp, date, lon0, lat0)
 
-                # Increment by delta time for next loop, to move through more quickly
-                date = date + timedelta(days=7)
+        # Increment by delta time for next loop, to move through more quickly
+        date = date + timedelta(days=7)
 
 
 if __name__ == "__main__":
