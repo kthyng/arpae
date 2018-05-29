@@ -131,8 +131,9 @@ def run():
                     # Read in simulation initialization
                     tp, lon0, lat0 = init(basedir + '/' + name, lonsink, latsink, sinkarrows=[iu, jv])
 
-                    # plot sink location, region of interest, and arrows
-                    plots.roi(grid, sinks=sinkloc, sinkarrows=[iu, jv])
+                    # plot sink location, region of interest, arrows, and seed locations
+                    plots.roi(grid, sinks=sinkloc, sinkarrows=[iu, jv],
+                              seeds=[lon0, lat0])
 
                     # Run tracpy
                     lonp, latp, zp, t, T0, U, V = tracpy.run.run(tp, date, lon0, lat0)
