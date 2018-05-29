@@ -14,6 +14,7 @@ import numpy as np
 import netCDF4 as netCDF
 import tracpy
 import tracpy.plotting
+from glob import glob
 
 
 land_50m = cartopy.feature.NaturalEarthFeature('physical', 'land', '50m')
@@ -164,11 +165,23 @@ def hist():
                                halpha=0.5)
 
     # read in tracks
-    d = netCDF.Dataset('tracks/2012-01-01T00gc.nc')
-    xg = d['xg'][:]; yg = d['yg'][:]
-    # convert to projected coordinates
-    xp, yp, _ = tracpy.tools.interpolate2d(xg, yg, grid, 'm_ij2xy')
+    dates = glob('tracks/*')  # pull out dates
+    dates = [date.split('/')[1] for date in dates]
+    sinks = glob('tracks/%s/*_s_0.01gc.nc' % dates[0])  # pull out sink locations
+    sinklocs = [(-float(sink.split('/')[-1].split('_')[1]), float(sink.split('/')[-1].split('_')[3])) for sink in sinks]
+    speeds = glob('tracks/%s/lon0_%2.2f_lat0_%2.2f_s_*gc.nc' % (dates[0], -sinklocs[0][0], sinklocs[0][1]))
+    speeds = [float(speed[-9:-5]) for speed in speeds]
 
+    # just do one sinkloc and speed to start
+    Files = glob('tracks/*/lon0_%2.2f_lat0_%2.2f_s_%2.2fgc.nc' % (-sinklocs[0][0], sinklocs[0][1], speeds[0]))
+
+    xp = []; yp = []
+    for File in Files:
+        d = netCDF.Dataset(File)
+        xg = d['xg'][:]; yg = d['yg'][:]
+        # convert to projected coordinates
+        xpt, ypt, _ = tracpy.tools.interpolate2d(xg, yg, grid, 'm_ij2xy')
+        xp.append(xpt); yp.append(ypt)
 
     tracpy.plotting.hist(xp, yp, proj, 'test', grid, tind='final', which='pcolor',
                          vmax=10, cmap=cmo.amp, cbcoords=[0.65, 0.15, 0.3, 0.02],
