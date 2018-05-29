@@ -181,9 +181,10 @@ def hist():
         xg = d['xg'][:]; yg = d['yg'][:]
         # convert to projected coordinates
         xpt, ypt, _ = tracpy.tools.interpolate2d(xg, yg, grid, 'm_ij2xy')
-        xp.append(xpt); yp.append(ypt)
+        xp.extend(xpt); yp.extend(ypt)
+        d.close()
 
-    tracpy.plotting.hist(xp, yp, proj, 'test', grid, tind='final', which='pcolor',
+    tracpy.plotting.hist(xp, yp, proj, 'test', grid, tind='all', which='hexbin',
                          vmax=10, cmap=cmo.amp, cbcoords=[0.65, 0.15, 0.3, 0.02],
                          fig=fig, ax=ax, bins=(40, 40), N=100, xlims=None,
                          ylims=None, C=None, Title=None, weights=None,
