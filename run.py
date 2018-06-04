@@ -103,7 +103,7 @@ def run():
     # plot sinks and region of interest
     plots.roi(grid, sinks=sinklocs)
 
-    overallstartdate = datetime(2010, 1, 1, 0, 0)
+    overallstartdate = datetime(2012, 1, 1, 0, 0)
     overallstopdate = datetime(2013, 1, 1, 0, 0)
 
     date = overallstartdate
