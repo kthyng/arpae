@@ -94,7 +94,7 @@ def roi(grid, sinks=None, sinkarrows=None, seeds=None):
         fname += '_lon0_%2.2f_lat0_%2.2f_sinkarrows' % (abs(sinks[0]), sinks[1])
 
     # add initial drifter locations
-    if seeds is not none:
+    if seeds is not None:
         lon0, lat0 = seeds
         ax.plot(lon0, lat0, 'g.', transform=pc)
         fname += '_seeds'
@@ -173,20 +173,33 @@ def hist():
     speeds = [float(speed[-9:-5]) for speed in speeds]
 
     # just do one sinkloc and speed to start
-    Files = glob('tracks/*/lon0_%2.2f_lat0_%2.2f_s_%2.2fgc.nc' % (-sinklocs[0][0], sinklocs[0][1], speeds[0]))
+    Files = glob('tracks/*/lon0_%2.2f_lat0_%2.2f_s_%2.2fgc.nc' % (-sinklocs[0][0], sinklocs[0][1], speeds[1]))
 
-    xp = []; yp = []
-    for File in Files:
-        d = netCDF.Dataset(File)
-        xg = d['xg'][:]; yg = d['yg'][:]
-        # convert to projected coordinates
-        xpt, ypt, _ = tracpy.tools.interpolate2d(xg, yg, grid, 'm_ij2xy')
-        xp.extend(xpt); yp.extend(ypt)
-        d.close()
+    bins = (100,100)
+    fname = 'calcs/hist/lon0_%2.2f_lat0_%2.2f_s_%2.2f.npz' % (-sinklocs[0][0], sinklocs[0][1], speeds[1])
+    if not os.path.exists(fname):
+        H = np.zeros(bins)
+        for File in Files:
+            d = netCDF.Dataset(File)
+            xg = d['xg'][:]; yg = d['yg'][:]
+            # convert to projected coordinates
+            xpt, ypt, _ = tracpy.tools.interpolate2d(xg, yg, grid, 'm_ij2xy')
+            Ht, xedges, yedges = np.histogram2d(xpt.flatten(), ypt.flatten(),
+                                               range=[[grid.x_rho.min(),
+                                                       grid.x_rho.max()],
+                                                      [grid.y_rho.min(),
+                                                       grid.y_rho.max()]],
+                                               bins=bins)
+            H += Ht
+            d.close()
 
-    tracpy.plotting.hist(xp, yp, proj, 'test', grid, tind='all', which='hexbin',
-                         vmax=10, cmap=cmo.amp, cbcoords=[0.65, 0.15, 0.3, 0.02],
-                         fig=fig, ax=ax, bins=(40, 40), N=100, xlims=None,
-                         ylims=None, C=None, Title=None, weights=None,
-                         Label='Final drifter location (%)', binscale=1,
+
+    os.makedirs('calcs/hist', exist_ok=True)
+    np.savez(fname, H=H, xedge=xedges, yedges=yedges)
+
+    tracpy.plotting.hist(xpt, ypt, proj, 'test', grid, tind='all', which='pcolor',
+                         cmap=cmo.amp, cbcoords=[0.45, 0.225, 0.4, 0.02],
+                         fig=fig, ax=ax, bins=(100, 100), N=100, xlims=None,
+                         ylims=None, C=None, Title=None, weights=None, H=H,
+                         Label='Drifter locations (%)', binscale=None,
                          crsproj=cartopy.crs.LambertConformal(central_latitude= 30, central_longitude=-94))
