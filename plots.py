@@ -15,6 +15,7 @@ import netCDF4 as netCDF
 import tracpy
 import tracpy.plotting
 from glob import glob
+import fiona
 
 
 land_50m = cartopy.feature.NaturalEarthFeature('physical', 'land', '50m')
@@ -80,7 +81,23 @@ def roi(grid, sinks=None, sinkarrows=None, seeds=None):
     # find seaweed paddock region of interest (intersection)
     seaweed = bathy.intersection(eez)
     ax.add_geometries([seaweed], pc, facecolor='magenta', alpha=0.5, edgecolor='m')
+
     # save seaweed paddock polygon
+    # Define a polygon feature geometry with one attribute
+    schema = {
+        'geometry': 'Polygon',
+        'properties': {'id': 'int'},
+    }
+
+    # Write a new Shapefile
+    os.makedirs('calcs/seaweed', exist_ok=True)
+    with fiona.open('calcs/seaweed/seaweed.shp', 'w', 'ESRI Shapefile', schema) as c:
+        ## If there are multiple geometries, put the "for" loop here
+        c.write({
+            'geometry': shapely.geometry.mapping(seaweed),
+            'properties': {'id': 123},
+        })
+
 
     # add sinks
     if sinks is not None:
@@ -102,6 +119,42 @@ def roi(grid, sinks=None, sinkarrows=None, seeds=None):
     fig.savefig(fname + '.png', bbox_inches='tight')
     fig.savefig(fname + '_lowres.png', bbox_inches='tight', dpi=70)
     plt.close(fig)
+
+
+def sinklocs():
+    '''plot map with sinklocs.'''
+
+    dates = glob('tracks/*')  # pull out dates
+    dates = [date.split('/')[1] for date in dates]
+    sinks = glob('tracks/%s/*_s_0.01gc.nc' % dates[0])  # pull out sink locations
+    sinklocs = [(-float(sink.split('/')[-1].split('_')[1]), float(sink.split('/')[-1].split('_')[3])) for sink in sinks]
+
+    colors = ['r','orange','g', 'b']
+
+    fig = plt.figure(figsize=(8,6))# (9.4, 7.7))
+    ax = fig.add_subplot(111, projection=merc)
+    # ax = fig.add_axes([0.06, 0.01, 0.93, 0.95], projection=merc)
+    ax.set_extent(extent, pc)
+    gl = ax.gridlines(linewidth=0.2, color='gray', alpha=0.5, linestyle='-', draw_labels=True)
+    # the following two make the labels look like lat/lon format
+    gl.xformatter = LONGITUDE_FORMATTER
+    gl.yformatter = LATITUDE_FORMATTER
+    gl.xlocator = mpl.ticker.FixedLocator(np.arange(-100, -70, 2))
+    gl.ylocator = mpl.ticker.FixedLocator(np.arange(10, 31, 2))
+    gl.xlabels_bottom = False  # turn off labels where you don't want them
+    gl.ylabels_right = False
+    # add background land
+    ax.add_feature(land_50m, facecolor='0.8')
+
+    # add seaweed polygon
+    polyname = 'calcs/seaweed/seaweed.shp'
+    ax.add_geometries(cartopy.io.shapereader.Reader(polyname).geometries(),
+                      pc, edgecolor='darkcyan', facecolor='none')
+
+    for sink, color in zip(sinklocs, colors):
+        ax.plot(sink[0], sink[1], 'o', color=color, markersize=10, transform=pc)
+    fig.savefig('figures/sinklocs.png', bbox_inches='tight')
+    fig.savefig('figures/sinklocs_lowres.png', bbox_inches='tight', dpi=70)
 
 
 def results(dates):
@@ -158,12 +211,6 @@ def hist():
     proj = tracpy.tools.make_proj('nwgom-pyproj')
     grid = tracpy.inout.readgrid(grid_file, proj=proj)
 
-
-    fig, ax = tracpy.plotting.background(grid, extent=extent,
-                               outline=[0,0,0,0], figsize=(10,8),
-                               hlevs=np.hstack(([10, 20], np.arange(50, 500, 50), np.arange(500, 5000, 500))),
-                               halpha=0.5)
-
     # read in tracks
     dates = glob('tracks/*')  # pull out dates
     dates = [date.split('/')[1] for date in dates]
@@ -172,34 +219,160 @@ def hist():
     speeds = glob('tracks/%s/lon0_%2.2f_lat0_%2.2f_s_*gc.nc' % (dates[0], -sinklocs[0][0], sinklocs[0][1]))
     speeds = [float(speed[-9:-5]) for speed in speeds]
 
-    # just do one sinkloc and speed to start
-    Files = glob('tracks/*/lon0_%2.2f_lat0_%2.2f_s_%2.2fgc.nc' % (-sinklocs[0][0], sinklocs[0][1], speeds[1]))
+    for sinkloc in sinklocs:
+        for speed in speeds:
+            Files = glob('tracks/*/lon0_%2.2f_lat0_%2.2f_s_%2.2fgc.nc' % (-sinkloc[0], sinkloc[1], speed))
 
-    bins = (100,100)
-    fname = 'calcs/hist/lon0_%2.2f_lat0_%2.2f_s_%2.2f.npz' % (-sinklocs[0][0], sinklocs[0][1], speeds[1])
-    if not os.path.exists(fname):
-        H = np.zeros(bins)
-        for File in Files:
-            d = netCDF.Dataset(File)
-            xg = d['xg'][:]; yg = d['yg'][:]
-            # convert to projected coordinates
-            xpt, ypt, _ = tracpy.tools.interpolate2d(xg, yg, grid, 'm_ij2xy')
-            Ht, xedges, yedges = np.histogram2d(xpt.flatten(), ypt.flatten(),
-                                               range=[[grid.x_rho.min(),
-                                                       grid.x_rho.max()],
-                                                      [grid.y_rho.min(),
-                                                       grid.y_rho.max()]],
-                                               bins=bins)
-            H += Ht
-            d.close()
+            bins = (100,100)
+            fname = 'calcs/hist/lon0_%2.2f_lat0_%2.2f_s_%2.2f.npz' % (-sinkloc[0], sinkloc[1], speed)
+            if not os.path.exists(fname):
+                H = np.zeros(bins)
+                for File in Files:
+                    d = netCDF.Dataset(File)
+                    xg = d['xg'][:]; yg = d['yg'][:]
+                    # convert to projected coordinates
+                    xpt, ypt, _ = tracpy.tools.interpolate2d(xg, yg, grid, 'm_ij2xy')
+                    Ht, xedges, yedges = np.histogram2d(xpt.flatten(), ypt.flatten(),
+                                                       range=[[grid.x_rho.min(),
+                                                               grid.x_rho.max()],
+                                                              [grid.y_rho.min(),
+                                                               grid.y_rho.max()]],
+                                                       bins=bins)
+                    H += Ht
+                    d.close()
 
 
-    os.makedirs('calcs/hist', exist_ok=True)
-    np.savez(fname, H=H, xedge=xedges, yedges=yedges)
+                os.makedirs('calcs/hist', exist_ok=True)
+                np.savez(fname, H=H, xedges=xedges, yedges=yedges)
+            else:
+                d = np.load(fname)
+                H = d['H']; xedges = d['xedges']; yedges = d['yedges']
+                d.close()
 
-    tracpy.plotting.hist(xpt, ypt, proj, 'test', grid, tind='all', which='pcolor',
-                         cmap=cmo.amp, cbcoords=[0.45, 0.225, 0.4, 0.02],
-                         fig=fig, ax=ax, bins=(100, 100), N=100, xlims=None,
-                         ylims=None, C=None, Title=None, weights=None, H=H,
-                         Label='Drifter locations (%)', binscale=None,
-                         crsproj=cartopy.crs.LambertConformal(central_latitude= 30, central_longitude=-94))
+
+            fig, ax = tracpy.plotting.background(grid, extent=extent,
+                                       outline=[0,0,0,0], figsize=(10,8),
+                                       hlevs=np.hstack(([10, 20], np.arange(50, 500, 50), np.arange(500, 5000, 500))),
+                                       halpha=0.5)
+            tracpy.plotting.hist(None, None, proj, 'test', grid, tind='all', which='pcolor',
+                                 cmap=cmo.amp, cbcoords=[0.45, 0.225, 0.4, 0.02],
+                                 fig=fig, ax=ax, bins=(100, 100), N=100, xlims=None,
+                                 ylims=None, C=None, Title=None, weights=None, H=H,
+                                 Label='Drifter locations (%)', binscale=None,
+                                 xedges=xedges, yedges=yedges, logscale=True,
+                                 crsproj=cartopy.crs.LambertConformal(central_latitude= 30, central_longitude=-94))
+
+            # add seaweed polygon
+            polyname = 'calcs/seaweed/seaweed.shp'
+            ax.add_geometries(cartopy.io.shapereader.Reader(polyname).geometries(),
+                              pc, edgecolor='darkcyan', facecolor='none')
+
+            os.makedirs('figures/hist', exist_ok=True)
+            fig.savefig('figures/hist/%s.png' % fname.split('/')[-1][:-4], bbox_inches='tight')
+            fig.savefig('figures/hist/%s_lowres.png' % fname.split('/')[-1][:-4], bbox_inches='tight', dpi=70)
+            plt.close(fig)
+
+
+def spread():
+    '''Calculate and plot max spread from sinkloc.'''
+
+    # loc = 'http://terrebonne.tamu.edu:8080/thredds/dodsC/NcML/gom_roms_hycom'
+    grid_file = 'gom03_grd_N050_new.nc'
+    proj = tracpy.tools.make_proj('nwgom-pyproj')
+    grid = tracpy.inout.readgrid(grid_file, proj=proj)
+
+    # get parameters
+    dates = glob('tracks/*')  # pull out dates
+    dates = [date.split('/')[1] for date in dates]
+    sinks = glob('tracks/%s/*_s_0.01gc.nc' % dates[0])  # pull out sink locations
+    sinklocs = [(-float(sink.split('/')[-1].split('_')[1]), float(sink.split('/')[-1].split('_')[3])) for sink in sinks]
+    speeds = glob('tracks/%s/lon0_%2.2f_lat0_%2.2f_s_*gc.nc' % (dates[0], -sinklocs[0][0], sinklocs[0][1]))
+    speeds = [float(speed[-9:-5]) for speed in speeds]
+
+    fig1, axes1 = plt.subplots(2,4, sharex=True, sharey=True, figsize=(10,8))
+    fig2, axes2 = plt.subplots(2,4, sharex=True, sharey=True, figsize=(10,8))
+    fig3, axes3 = plt.subplots(2,4, sharex=True, sharey=True, figsize=(10,8))
+    fig4, axes4 = plt.subplots(2,4, sharex=True, sharey=True, figsize=(10,8))
+    colors = ['r','orange','g', 'b']
+    # alphas = [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
+    markers = ['*', 'o', 'x', '+', '.', '^','s']
+    for i, (speed, marker) in enumerate(zip(speeds, markers)):
+        splot = []; meanplot = []; stdplot = []; maxplot = []
+        dateplot = []; sinkloclon = []; sinkloclat = []
+        for sinkloc, color in zip(sinklocs[3:], colors[3:]):
+            meanplot2 = []; maxplot2 = [];
+            for date in dates:
+                fname = 'calcs/spread/%s/lon0_%2.2f_lat0_%2.2f_s_%2.2f.npz' % (date, -sinkloc[0], sinkloc[1], speed)
+
+                if not os.path.exists(fname):
+                    File = 'tracks/%s/lon0_%2.2f_lat0_%2.2f_s_%2.2fgc.nc' % (date, -sinkloc[0], sinkloc[1], speed)
+                    d = netCDF.Dataset(File)
+                    xg = d['xg'][:]; yg = d['yg'][:]
+                    # convert to projected coordinates
+                    xpt, ypt, _ = tracpy.tools.interpolate2d(xg, yg, grid, 'm_ij2xy')
+
+                    sinklocx, sinklocy = proj(sinkloc[0], sinkloc[1])
+
+                    # calculate distance of tracks from sinkloc
+                    dist = np.sqrt( (xpt - sinklocx)**2 + (ypt - sinklocy)**2)
+
+                    os.makedirs('calcs/spread/%s' % date, exist_ok=True)
+                    np.savez(fname, t=d['tp'][0,:], mean=np.nanmean(dist, axis=0),
+                             max=np.nanmax(dist, axis=0), std=np.nanstd(dist, axis=0))
+
+                else:
+                    d = np.load(fname)
+                    t = d['t']
+                    dmean = d['mean']; dmax = d['max']; dstd = d['std']
+                    d.close()
+                # ax.plot(speed, dmean.max()/1000, color=color, alpha=0.5, marker=marker)
+                splot.append(speed)
+                dateplot.append(date)
+                sinkloclon.append(sinkloc[0])
+                sinkloclat.append(sinkloc[1])
+                meanplot.append(dmean.max()/1000)
+                meanplot2.append(dmean.max()/1000)
+                stdplot.append(dstd)
+                maxplot.append(dmax.max()/1000)
+                maxplot2.append(dmax.max()/1000)
+
+            ax = axes2.flatten()[i]
+            ax.hist(meanplot2, range=(0,200), bins=20, color=color, label='lon0_%2.2f_lat0_%2.2f'%(-sinkloc[0], sinkloc[1]))
+            ax.set_title('speed=%2.2f m/s\n=%2.2f kts' % (speed*(12/5),speed*(12/5)*1.94384))
+            if i in [4,5,6]:
+                ax.set_xlabel('distance from sinkloc [km]')
+            ax.set_ylim(0,50)
+
+            ax = axes3.flatten()[i]
+            ax.hist(maxplot2, range=(0,200), bins=20, color=color, label='lon0_%2.2f_lat0_%2.2f'%(-sinkloc[0], sinkloc[1]))
+            ax.set_title('speed=%2.2f m/s\n=%2.2f kts' % (speed*(12/5),speed*(12/5)*1.94384))
+            if i in [4,5,6]:
+                ax.set_xlabel('distance from sinkloc [km]')
+            ax.set_ylim(0,50)
+
+        ax = axes1.flatten()[i]
+        ax.hist(meanplot, range=(0,200), bins=20)#, label='speed=%2.2f'%speed)
+        ax.set_title('speed=%2.2f m/s\n=%2.2f kts' % (speed*(12/5),speed*(12/5)*1.94384))
+        if i in [4,5,6]:
+            ax.set_xlabel('distance from sinkloc [km]')
+        ax.set_ylim(0,170)
+
+        ax = axes4.flatten()[i]
+        ax.hist(maxplot, range=(0,200), bins=20)#, label='speed=%2.2f'%speed)
+        ax.set_title('speed=%2.2f m/s\n=%2.2f kts' % (speed*(12/5),speed*(12/5)*1.94384))
+        if i in [4,5,6]:
+            ax.set_xlabel('distance from sinkloc [km]')
+        ax.set_ylim(0,170)
+
+        os.makedirs('figures/spread', exist_ok=True)
+        fig1.savefig('figures/spread/maxofmean.png', bbox_inches='tight')
+        fig1.savefig('figures/spread/maxofmean_lowres.png', bbox_inches='tight', dpi=70)
+        fig2.savefig('figures/spread/maxofmean_locs.png', bbox_inches='tight')
+        fig2.savefig('figures/spread/maxofmean_locs_lowres.png', bbox_inches='tight', dpi=70)
+        fig3.savefig('figures/spread/maxofmax_locs.png', bbox_inches='tight')
+        fig3.savefig('figures/spread/maxofmax_locs_lowres.png', bbox_inches='tight', dpi=70)
+        fig4.savefig('figures/spread/maxofmax.png', bbox_inches='tight')
+        fig4.savefig('figures/spread/maxofmax_lowres.png', bbox_inches='tight', dpi=70)
+
+if __name__ == "__main__":
+    spread()
